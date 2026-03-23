@@ -1,0 +1,92 @@
+# docker-compose.yml
+services:
+  postgres:
+    image: postgres:16
+    container_name: municipal_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: municipal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    container_name: municipal_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  redis:
+    image: redis:7.4
+    container_name: municipal_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  worker:
+    build:
+      context: ./apps/worker
+      dockerfile: Dockerfile
+    container_name: municipal_worker
+    depends_on:
+      - redis
+      - postgres
+      - minio
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /worker/src:/worker/src/core
+    command: rq worker ${RQ_QUEUE_NAME:-municipal_default} --url ${REDIS_URL:-redis://redis:6379/0}
+    volumes:
+      - ./apps/worker/src:/worker/src
+      - ./packages/core/src:/worker/src/core
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: municipal_api
+    depends_on:
+      - redis
+      - worker
+      - postgres
+      - minio
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app/src:/worker/src:/worker/src/core
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/api/src:/app/src
+      - ./apps/worker/src:/worker/src
+      - ./packages/core/src:/worker/src/core
+    command: uvicorn municipal_api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: municipal_web
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/web:/web
+      - /web/node_modules
+      - ./packages/core/src:/web/core
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+
+volumes:
+  redis_data:
+  postgres_data:
+  minio_data:

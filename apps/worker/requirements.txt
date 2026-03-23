@@ -1,0 +1,17 @@
+redis==5.0.8
+rq==1.16.2
+pydantic-settings==2.5.2
+
+sqlalchemy==2.0.35
+psycopg[binary]==3.2.3
+
+boto3==1.35.54
+
+pandas==2.2.3
+openpyxl==3.1.5
+pyarrow==17.0.0
+
+scikit-learn==1.5.2
+matplotlib==3.9.2
+xlsxwriter==3.2.0
+python-docx==1.1.2
